@@ -21,9 +21,9 @@ function save() {
   } catch (e) { console.error('[likes] 保存失敗', e); }
 }
 setInterval(save, 5000).unref();
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { save(); process.exit(0); });
 
 export const likes = {
+  save,
   add(n) { total += n; dirty = true; return total; },
   get total() { return total; },
 };

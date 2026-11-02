@@ -8,15 +8,15 @@ const CRATER_W = 17, L_FULL = 38, PILE_SLOPE = 0.55, FOOT = 0.5;
 
 // 刻（フェーズ）の設定。rate は1秒あたりに落ちる砂の割合、drain は命の減る速さ、flow は流砂の強さ
 export const EPOCHS = [
-  { name: '第一の刻', dur: 70, rate: 0.011, drain: 1.0, flow: 1.0 },
-  { name: '第二の刻', dur: 60, rate: 0.013, drain: 1.25, flow: 1.15 },
-  { name: '第三の刻', dur: 50, rate: 0.016, drain: 1.6, flow: 1.3 },
-  { name: '最後の刻', dur: 40, rate: 0.02, drain: 2.2, flow: 1.5 },
+  { name: '第一の刻', dur: 70, rate: 0.011, drain: 0.8, flow: 0.7 },
+  { name: '第二の刻', dur: 60, rate: 0.013, drain: 1.0, flow: 0.8 },
+  { name: '第三の刻', dur: 50, rate: 0.016, drain: 1.25, flow: 0.9 },
+  { name: '最後の刻', dur: 40, rate: 0.02, drain: 1.6, flow: 1.0 },
 ];
 export const WAIT_TIME = 18, FLIP_TIME = 6, END_TIME = 20;
-export const START_LIFE = 60, LATE_LIFE = 45, MAX_LIFE = 150, REBIRTH_SOUL = 20, GIFT = 10, TOP_DRAIN = 0.5, BURY_DRAIN = 4;
+export const START_LIFE = 90, LATE_LIFE = 70, MAX_LIFE = 150, REBIRTH_SOUL = 10, REBIRTH_LIFE = 20, GIFT = 10, TOP_DRAIN = 0.5, BURY_DRAIN = 3;
 export const PHASE = { WAIT: 0, RUN: 1, FLIP: 2, END: 3 };
-export const F = { GHOST: 1, DASH: 2, GROUND: 4, STUN: 8, BURIED: 16, BOT: 32, SAFE: 64 };
+export const F = { GHOST: 1, DASH: 2, GROUND: 4, STUN: 8, BURIED: 16, BOT: 32, SAFE: 64, NOCHANCE: 128 };
 
 // くびれから距離 d の高さでのガラスの半径
 export function glassR(d) {

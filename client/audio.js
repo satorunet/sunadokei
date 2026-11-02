@@ -63,6 +63,8 @@ export class Sound {
     this.tone(f, .22, { vol: big ? .2 : .11 }); this.tone(f * 2, .14, { vol: .04 });
     if (big) this.tone(f * 1.5, .3, { vol: .13, delay: .06 });
   }
+  uiTap() { this.tone(1180, .07, { type: 'triangle', vol: .13 }); this.tone(1770, .05, { vol: .05, delay: .02 }); this.burst(.06, 5200, .05, .6, 'highpass'); }
+  uiOk() { this.tone(660, .12, { type: 'triangle', vol: .14 }); this.tone(990, .22, { type: 'triangle', vol: .14, delay: .08 }); this.burst(.18, 4600, .06, .5, 'highpass', .6); }
   like() { this.tone(660 + Math.random() * 500, .09, { type: 'triangle', vol: .1, slide: 1.5 }); }
   dash() { this.burst(.24, 900, .24, .7, 'bandpass', 2.4); }
   hit() { this.tone(120, .22, { type: 'square', vol: .22, slide: .35 }); this.burst(.3, 1800, .42, .5, 'bandpass', .4); }

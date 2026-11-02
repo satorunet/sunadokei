@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import * as W from '../shared/world.js';
 import { World } from './world3d.js';
-import { Actors, Grains, Sparks, tiltToGround } from './actors.js';
+import { Actors, Grains, Sparks, tiltToGround, makeArrow } from './actors.js';
 import { Sound } from './audio.js';
 import { Music, Opening } from './op.js';
 
@@ -31,6 +31,9 @@ const actors = new Actors(world.group, world.glowTex);
 const grains = new Grains(world.group, world.glowTex);
 const sparks = new Sparks(world.group, lite ? 1200 : 2400);
 const sound = new Sound();
+const arrow = makeArrow();
+world.group.add(arrow);
+const ARROW_RANGE = 34;
 
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -76,6 +79,12 @@ function connect(name) {
     else onSnapshot(new DataView(m.data));
   };
   ws.onclose = (e) => {
+    if (e.code === 1012) { // サーバーの更新。少し待って自動で入り直す
+      $('lostmsg').textContent = 'ゲームを更新しました。入り直します…';
+      $('lost').style.display = 'flex';
+      setTimeout(() => location.reload(), 1500 + Math.random() * 2500);
+      return;
+    }
     $('lostmsg').textContent = e.code === 1013 ? '砂時計が満員か、同じ接続先からの参加が多すぎます' : '接続が切れました';
     $('lost').style.display = 'flex';
   };
@@ -100,7 +109,7 @@ function onJSON(m) {
     return;
   }
   if (m.t === 'rk') { S.rankTop = m.top; drawRank(); return; }
-  if (m.t === 'lk') { onLikes(m.r, m.a); return; }
+  if (m.t === 'lk') { onLikes(m.c, m.a); return; }
   if (m.t === 'end') showResult(m);
 }
 
@@ -142,6 +151,7 @@ function reconcile(x, y, z, vx, vy, vz, fl, e) {
   S.ghost = !!(fl & F.GHOST);
   me.ghost = S.ghost;
   S.buried = !!(fl & F.BURIED);
+  S.noChance = !!(fl & F.NOCHANCE);
   if (wasGhost !== S.ghost) canvas.classList.toggle('dead', S.ghost);
   if (S.phase === PHASE.FLIP) { // 反転中はサーバーの位置に合わせる
     me.x += (x - me.x) * .3; me.y += (y - me.y) * .3; me.z += (z - me.z) * .3;
@@ -210,12 +220,11 @@ function onEvent(e) {
     const ep = EPOCHS[e[1]];
     sound.bell();
     const final = e[1] === EPOCHS.length - 1;
-    banner(ep.name, final ? 'もう誰も蘇れない。命は倍の速さで落ちる' : e[1] === 0 ? '砂が落ちはじめた' : `命の減りが ${ep.drain} 倍に`, 2.6, final);
+    banner(ep.name, final ? `亡霊にもワンチャン。粒を${W.REBIRTH_SOUL}秒ぶん集めれば一度だけ蘇る` : e[1] === 0 ? '砂が落ちはじめた' : `命の減りが ${ep.drain} 倍に`, 2.6, final);
   } else if (k === 'reset') {
     $('result').classList.remove('on');
     $('hud').classList.add('on');
-    music.fadeOut();
-    sound.padOn();
+    gameMusic(GAME_VOL); // 次の巡りでは小さな音量に戻す
     if (!isTouch && !document.pointerLockElement) $('gate').style.display = 'block';
     grains.map.clear();
     banner('次の巡り', 'すべての砂が上に戻る', 2.2);
@@ -239,7 +248,7 @@ function onDie(id, by) {
   if (v && dist2Me(v.x, v.y, v.z) < 3600) sparks.emit(v.x, v.y + 1, v.z, 70, { speed: 4, up: 3, life: 1.8, grav: 3, spread: 1.2, color: [.8, .85, 1] }, clockNow);
   if (id === S.id) {
     sound.die();
-    banner('砂が尽きた', S.epoch === EPOCHS.length - 1 ? 'この巡りでは、もう蘇れない' : `亡霊として粒を${W.REBIRTH_SOUL}秒ぶん集めれば蘇る`, 3.2, true);
+    banner('砂が尽きた', S.noChance ? 'この巡りでは、もう蘇れない' : `亡霊として粒を${W.REBIRTH_SOUL}秒ぶん集めれば蘇る`, 3.2, true);
     feed(by ? `${nameOf(by)} に命を奪われた` : '命が尽きた', 'red');
   } else if (by === S.id) feed(`${nameOf(id)} の命を終わらせた`, 'gold');
   else if (!v?.bot) feed(by ? `${nameOf(id)} が ${nameOf(by)} に倒された` : `${nameOf(id)} の砂が尽きた`);
@@ -309,74 +318,98 @@ function showResult(m) {
   $('rsum').textContent = `${m.total}人中 ${m.rank}位 ／ 生存 ${m.alive}人 ／ 与えた命 ${m.you.g}秒 ／ 砕いた数 ${m.you.h}`;
   const list = $('rlist');
   list.textContent = '';
-  m.top.forEach((r, i) => {
+  LK.count.clear(); LK.pending.clear(); LK.unacked.clear(); LK.rows.clear(); LK.total = m.likes;
+  m.top.forEach((r) => {
     const li = document.createElement('li');
     if (r.id === S.id) li.className = 'me';
-    const a = document.createElement('span'); a.textContent = i + 1; a.className = 'd';
+    const a = document.createElement('span'); a.textContent = r.r; a.className = 'd';
     const n = document.createElement('span'); n.textContent = r.n; n.className = 'n';
     const v = document.createElement('span'); v.className = 'v'; v.textContent = r.a ? `残り ${r.l}秒` : `${r.s}秒生きた`;
-    li.append(a, n, v);
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'lk sans'; btn.dataset.id = r.id;
+    btn.setAttribute('aria-label', `${r.n} に砂時計イイネ`);
+    btn.innerHTML = HG;
+    const num = document.createElement('b'); num.textContent = '0';
+    btn.appendChild(num);
+    LK.rows.set(r.id, { btn, num });
+    li.append(a, n, v, btn);
     list.appendChild(li);
   });
+  LK.rows.get(S.id)?.btn.closest('li').scrollIntoView({ block: 'nearest' }); // 自分の行が見えるように
   $('rhero').textContent = m.hero ? `最も命を分けた人: ${m.hero.n}（${m.hero.g}秒）` : '';
-  LK.mine = 0; LK.pending = 0; LK.sentUnacked = 0; LK.round = 0; LK.total = m.likes;
-  $('like').classList.remove('liked');
   drawLikes();
   $('hud').classList.remove('on');
   $('banner').classList.remove('on');
   // 結果発表では主題歌を流す（次の巡りが始まると止まる）
-  sound.padOff();
-  if (!sound.muted) { music.route(); music.play(true).catch(() => {}); }
+  gameMusic(RESULT_VOL, true);
   $('result').classList.add('on');
   sound.bell();
   releasePointer();
 }
-// 砂時計イイネ: 押した分はすぐ画面に出し、0.2秒ごとにまとめて送る
-const LK = { mine: 0, pending: 0, sentUnacked: 0, round: 0, total: 0, floats: 0 };
-const HG = '<svg viewBox="0 0 24 34" aria-hidden="true"><path d="M3 2h18v5c0 5-6 7-7 10 1 3 7 5 7 10v5H3v-5c0-5 6-7 7-10-1-3-7-5-7-10z" fill="#f4b860" stroke="#ffe9c4" stroke-width="1.5"/></svg>';
-function drawLikes() {
-  const shown = LK.round + LK.pending + LK.sentUnacked;
-  $('likeRound').textContent = shown.toLocaleString();
-  $('likeTotal').textContent = (LK.total + LK.pending + LK.sentUnacked).toLocaleString();
-  $('likeMine').textContent = LK.mine.toLocaleString();
+// 砂時計イイネ: 人ごとに何回でも押せる。押した分はすぐ画面に出し、0.2秒ごとにまとめて送る
+const LK = { count: new Map(), pending: new Map(), unacked: new Map(), rows: new Map(), total: 0, floats: 0 };
+const HG_PATH = 'M3 2h18v5c0 5-6 7-7 10 1 3 7 5 7 10v5H3v-5c0-5 6-7 7-10-1-3-7-5-7-10z';
+const HG = `<svg viewBox="0 0 24 34" aria-hidden="true"><path d="${HG_PATH}"/></svg>`;
+const sumMap = (m) => { let n = 0; for (const v of m.values()) n += v; return n; };
+const lkShown = (id) => (LK.count.get(id) || 0) + (LK.pending.get(id) || 0) + (LK.unacked.get(id) || 0);
+function drawLikes(id) {
+  const row = id !== undefined && LK.rows.get(id);
+  if (row) row.num.textContent = lkShown(id).toLocaleString();
+  $('likeMine').textContent = lkShown(S.id).toLocaleString();
+  $('likeTotal').textContent = (LK.total + sumMap(LK.pending) + sumMap(LK.unacked)).toLocaleString();
 }
-function likeFloat() {
-  if (LK.floats >= 36) return;
+function likeFloat(el) {
+  if (LK.floats >= 36 || !el) return;
   LK.floats++;
   const d = document.createElement('div');
   d.className = 'lkf';
   d.innerHTML = HG;
-  const r = $('like').getBoundingClientRect();
-  const x = r.left + Math.random() * r.width, s = .6 + Math.random() * .9, dx = (Math.random() - .5) * 110, rot = (Math.random() - .5) * 200;
-  d.style.cssText = `left:${x}px;top:${r.top}px;transform:scale(${s})`;
+  const r = el.getBoundingClientRect();
+  const s = .6 + Math.random() * .9, dx = (Math.random() - .5) * 90, rot = (Math.random() - .5) * 200;
+  d.style.cssText = `left:${r.left + r.width / 2}px;top:${r.top}px;transform:scale(${s})`;
   document.body.appendChild(d);
-  d.animate([{ transform: `scale(${s})`, opacity: 1 }, { transform: `translate(${dx}px,-${170 + Math.random() * 170}px) rotate(${rot}deg) scale(${s * .7})`, opacity: 0 }], { duration: 1000 + Math.random() * 500, easing: 'ease-out' }).onfinish = () => { d.remove(); LK.floats--; };
+  d.animate([{ transform: `scale(${s})`, opacity: 1 }, { transform: `translate(${dx}px,-${110 + Math.random() * 130}px) rotate(${rot}deg) scale(${s * .7})`, opacity: 0 }], { duration: 900 + Math.random() * 500, easing: 'ease-out' }).onfinish = () => { d.remove(); LK.floats--; };
 }
-function pressLike() {
-  if (!$('result').classList.contains('on')) return;
-  LK.mine++; LK.pending++;
-  $('like').classList.add('liked');
-  likeFloat();
+function pressLike(id) {
+  const row = LK.rows.get(id);
+  if (!row || !$('result').classList.contains('on')) return;
+  LK.pending.set(id, (LK.pending.get(id) || 0) + 1);
+  row.btn.classList.add('liked');
+  likeFloat(row.btn);
   sound.like();
-  const b = $('like');
-  b.animate([{ transform: 'scale(.93)' }, { transform: 'scale(1)' }], { duration: 110 });
+  row.btn.animate([{ transform: 'scale(.86)' }, { transform: 'scale(1)' }], { duration: 110 });
+  drawLikes(id);
+}
+function onLikes(changes, total) {
+  LK.total = total;
+  for (const [id, count] of changes) {
+    const delta = count - (LK.count.get(id) || 0);
+    const un = LK.unacked.get(id) || 0, mine = Math.min(un, Math.max(0, delta));
+    LK.unacked.set(id, un - mine);
+    LK.count.set(id, count);
+    // 他の人が押した分も砂時計を飛ばす
+    const row = LK.rows.get(id);
+    if (row && $('result').classList.contains('on')) { for (let i = 0; i < Math.min(5, delta - mine); i++) likeFloat(row.btn); drawLikes(id); }
+  }
   drawLikes();
 }
-function onLikes(round, total) {
-  // 自分以外が押した分も砂時計を飛ばす
-  const others = round - LK.round - LK.sentUnacked;
-  LK.sentUnacked = Math.max(0, LK.sentUnacked - Math.max(0, round - LK.round));
-  LK.round = round; LK.total = total;
-  if ($('result').classList.contains('on')) { for (let i = 0; i < Math.min(5, others); i++) likeFloat(); drawLikes(); }
-}
 setInterval(() => {
-  if (!LK.pending || !ws || ws.readyState !== 1) return;
-  const n = Math.min(50, LK.pending);
-  ws.send(JSON.stringify({ t: 'like', n }));
-  LK.pending -= n; LK.sentUnacked += n;
+  if (!LK.pending.size || !ws || ws.readyState !== 1) return;
+  for (const [id, v] of LK.pending) {
+    const n = Math.min(50, v);
+    ws.send(JSON.stringify({ t: 'like', id, n }));
+    LK.unacked.set(id, (LK.unacked.get(id) || 0) + n);
+    if (v - n > 0) LK.pending.set(id, v - n); else LK.pending.delete(id);
+  }
 }, 200);
-$('like').addEventListener('pointerdown', (e) => { e.preventDefault(); pressLike(); });
-$('like').addEventListener('keydown', (e) => { if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); e.stopPropagation(); pressLike(); } });
+{
+  const idOf = (e) => { const b = e.target.closest?.('.lk'); return b ? Number(b.dataset.id) : 0; };
+  $('rlist').addEventListener('pointerdown', (e) => { const id = idOf(e); if (id) { e.preventDefault(); pressLike(id); } });
+  $('rlist').addEventListener('keydown', (e) => {
+    const id = idOf(e);
+    if (id && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) pressLike(id); }
+  });
+}
 
 function fmtTime(s) { s = Math.ceil(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
@@ -418,7 +451,7 @@ function updateHUD(dt) {
     $('drainnote').textContent = S.buried ? '砂に埋もれている！ 中心から離れて' : `${me.y >= 0 ? '上の球' : '下の球'}  毎秒 −${d.toFixed(2)}`;
     $('drainnote').classList.toggle('bad', S.buried);
   } else if (ghost) {
-    $('drainnote').textContent = S.epoch === EPOCHS.length - 1 ? '最後の刻には蘇れない' : '金の粒を拾うか、誰かに分けてもらう';
+    $('drainnote').textContent = S.noChance ? 'この巡りでは、もう蘇れない' : S.epoch === EPOCHS.length - 1 ? 'ワンチャン！ 金の粒で一度だけ蘇れる' : '金の粒を拾うか、誰かに分けてもらう';
     $('drainnote').classList.remove('bad');
   } else {
     $('drainnote').textContent = ph === PHASE.WAIT ? '命はまだ減らない' : '';
@@ -458,9 +491,9 @@ function updateHUD(dt) {
 
   // 近くの亡霊
   let ghostNear = null, gd = 81;
-  if (!ghost && S.life > W.GIFT + 2 && ph === PHASE.RUN && S.epoch < EPOCHS.length - 1) {
+  if (!ghost && S.life > W.GIFT + 2 && ph === PHASE.RUN) {
     for (const e of roster.values()) {
-      if (!e.ghost || e.id === S.id || !e.seen) continue;
+      if (!e.ghost || e.id === S.id || !e.seen || (e.flags & F.NOCHANCE)) continue;
       const d = dist2Me(e.x, e.y, e.z);
       if (d < gd) { gd = d; ghostNear = e; }
     }
@@ -509,7 +542,6 @@ addEventListener('keydown', (e) => {
   if (movementKeys.has(e.code)) e.preventDefault();
   if (e.repeat) return;
   keys.add(e.code);
-  if (e.code === 'Space' && $('result').classList.contains('on')) { pressLike(); return; }
   if (e.code === 'Space') pressed.jump = true;
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyF') pressed.dash = true;
   if (e.code === 'KeyE') pressed.give = true;
@@ -532,7 +564,7 @@ document.addEventListener('mousemove', (e) => {
   view.pitch = Math.max(-0.55, Math.min(1.25, view.pitch + e.movementY * 0.0022));
 });
 canvas.addEventListener('wheel', (e) => { view.dist = Math.max(4.5, Math.min(26, view.dist * (1 + e.deltaY * 0.001))); }, { passive: true });
-$('mute').addEventListener('click', () => { $('mute').textContent = sound.toggle() ? '音 切' : '音 入'; });
+$('mute').addEventListener('click', (e) => { $('mute').textContent = sound.toggle() ? '音 切' : '音 入'; gameMusic(S.phase === PHASE.END ? RESULT_VOL : GAME_VOL); e.currentTarget.blur(); });
 if (sound.muted) $('mute').textContent = '音 切';
 
 // タッチ
@@ -586,6 +618,23 @@ const op = new Opening({ world, actors, grains, sparks, music, env, canvas, lite
   else music.stop();
 } });
 const canBgm = () => music.want && !S.joined && !op.on;
+// ゲーム中の曲: プレイ中は小さく流し、結果発表では大きく頭から流す
+const GAME_VOL = .22, RESULT_VOL = .85;
+function gameMusic(vol, fromStart = false) {
+  const on = music.want && !sound.muted;
+  $('bgmGame').textContent = music.want ? '曲 入' : '曲 切';
+  if (!on) { music.stop(); sound.padOn(); return; }
+  sound.padOff(); // 低い持続音は曲と重ねない
+  music.route();
+  if (!fromStart && !music.el.paused) music.setVol(vol, 1.5);
+  else music.play(fromStart, vol)?.catch?.(() => {});
+}
+$('bgmGame').addEventListener('click', () => {
+  music.want = !music.want;
+  try { localStorage.setItem('sd-bgm', music.want ? '1' : '0'); } catch {}
+  gameMusic(S.phase === PHASE.END ? RESULT_VOL : GAME_VOL);
+  $('bgmGame').blur();
+});
 // 自動再生が許される環境ならすぐ流す。ダメなら最初の操作で流す
 if (canBgm()) music.el.play().catch(() => {});
 const firstGesture = () => {
@@ -605,6 +654,35 @@ bgmBtn.addEventListener('click', () => {
 });
 $('opbtn').addEventListener('click', () => { sound.start(); op.open(); });
 
+// トップ画面のボタンを押すと効果音
+addEventListener('click', (e) => {
+  const b = e.target.closest?.('button,a');
+  if (!b || !b.closest('#title,#help,#op')) return;
+  sound.start();
+  if (b.id === 'go' || b.id === 'opbtn' || b.id === 'menuOp') sound.uiOk(); else sound.uiTap();
+}, true);
+
+// トップ画面の ≡ メニュー
+const menuBtn = $('menuBtn'), menuPanel = $('menuPanel');
+function setMenu(open) {
+  menuPanel.hidden = !open;
+  menuBtn.setAttribute('aria-expanded', String(open));
+}
+menuBtn.addEventListener('click', () => setMenu(menuPanel.hidden));
+$('menuOp').addEventListener('click', () => { setMenu(false); sound.start(); op.open(); });
+const help = $('help');
+function setHelp(open) {
+  help.hidden = !open;
+  if (open) { setMenu(false); help.scrollTop = 0; $('helpClose').focus(); }
+  else menuBtn.focus();
+}
+$('menuHelp').addEventListener('click', () => setHelp(true));
+$('helpClose').addEventListener('click', () => setHelp(false));
+help.addEventListener('click', (e) => { if (e.target === help) setHelp(false); });
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && !help.hidden) setHelp(false); });
+addEventListener('pointerdown', (e) => { if (!menuPanel.hidden && !$('menu').contains(e.target)) setMenu(false); });
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && !menuPanel.hidden) { setMenu(false); menuBtn.focus(); } });
+
 // ───────── タイトル → 参加 ─────────
 const nameInput = $('name');
 try { nameInput.value = localStorage.getItem('sd-name') || ''; } catch {}
@@ -621,8 +699,7 @@ function startPlaying() {
   $('title').classList.add('gone');
   $('hud').classList.add('on');
   $('touch').classList.add('on');
-  music.fadeOut();
-  sound.padOn();
+  gameMusic(GAME_VOL);
   if (!isTouch) canvas.requestPointerLock?.();
   firstFrame = true;
 }
@@ -684,6 +761,45 @@ function fixedStep() {
 }
 let lastAirSpeed = 0;
 
+// 一番近い粒（拾える範囲にいる大粒は優先）へ矢印を向ける
+const ap = { x: 0, y: 0, z: 0, r: 0 };
+let arrowGrain = null, arrowScan = 0;
+function updateArrow(flipE) {
+  const usable = S.phase === PHASE.RUN && flipE === 0 && !(S.ghost && S.noChance);
+  if (!usable) { arrow.visible = false; arrowGrain = null; return; }
+  if (--arrowScan <= 0 || (arrowGrain && !grains.map.has(arrowGrain.id))) {
+    arrowScan = 6;
+    let best = null, bs = Infinity;
+    const top = me.y >= 0;
+    for (const g of grains.map.values()) {
+      if (g.top !== top || clockNow - g.t0 < g.fall) continue;
+      grains.posOf(g, clockNow, env, ap);
+      const d = Math.hypot(ap.x - me.x, ap.z - me.z);
+      if (d > ARROW_RANGE || Math.abs(ap.y - me.y) > 14) continue;
+      const score = d - (g.v >= 6 ? 6 : 0);
+      if (score < bs) { bs = score; best = g; }
+    }
+    arrowGrain = best;
+  }
+  if (!arrowGrain) { arrow.visible = false; return; }
+  grains.posOf(arrowGrain, clockNow, env, ap);
+  const dx = ap.x - me.x, dz = ap.z - me.z, d = Math.hypot(dx, dz);
+  if (d < 2.4) { arrow.visible = false; return; } // もう拾える距離
+  const ux = dx / d, uz = dz / d;
+  const dist = 2.5 + Math.sin(clockNow * 7) * .2;
+  const ax = me.x + ux * dist, az = me.z + uz * dist, r = Math.hypot(ax, az);
+  const g = W.groundY(r, me.y, env);
+  arrow.position.set(ax, (g === -Infinity ? me.y : Math.max(g, me.y - 1.5)) + .55, az);
+  // 斜面に沿わせてから進む向きへ回す
+  tiltToGround({ x: ax, y: me.y, z: az }, env, arrow);
+  arrow.rotateY(Math.atan2(ux, uz));
+  const near = 1 - Math.min(1, d / ARROW_RANGE);
+  arrow.scale.setScalar(.8 + near * .55);
+  arrow.material.opacity = .55 + near * .4;
+  arrow.material.color.setHex(S.ghost ? 0xa9d8ff : arrowGrain.v >= 6 ? 0xfff0a0 : 0xffd778);
+  arrow.visible = true;
+}
+
 // ───────── 毎フレーム ─────────
 const list = [];
 const flipEase = (t) => t * t * t * (t * (t * 6 - 15) + 10);
@@ -742,6 +858,7 @@ function frame(nowMs) {
     } else actors.ring.visible = false;
     updateHUD(dt);
     grains.draw(clockNow, env, clockNow);
+    updateArrow(flipE);
     // 音: 砂の滝との距離
     const dn = Math.hypot(me.x, me.y - env.P * .5, me.z);
     sound.ambient(S.phase === PHASE.END ? 0 : S.f > .001 && flipE === 0 ? Math.min(.18, 4 / (dn + 18)) : .02, me.y >= 0 ? .2 : .8);
@@ -807,4 +924,4 @@ function frame(nowMs) {
   }
 }
 requestAnimationFrame(frame);
-window.__sd = { op, music, camera, S, me, roster, view, grains, world, env, keys, pressed, timeLeft };
+window.__sd = { arrow, sound, op, music, camera, S, me, roster, view, grains, world, env, keys, pressed, timeLeft };

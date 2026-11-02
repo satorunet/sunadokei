@@ -105,6 +105,16 @@ export class Actors {
   }
 }
 
+// 近くの粒を指す矢印（+Z 向きの平たい矢じり）
+export function makeArrow() {
+  const sh = new THREE.Shape();
+  sh.moveTo(0, .95); sh.lineTo(.68, -.1); sh.lineTo(.27, -.1); sh.lineTo(.27, -.72); sh.lineTo(-.27, -.72); sh.lineTo(-.27, -.1); sh.lineTo(-.68, -.1); sh.closePath();
+  const g = new THREE.ShapeGeometry(sh).rotateX(Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffd778, transparent: true, opacity: .9, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+  m.renderOrder = 8; m.visible = false; m.frustumCulled = false;
+  return m;
+}
+
 // 命の粒
 export class Grains {
   constructor(group, glowTex) {

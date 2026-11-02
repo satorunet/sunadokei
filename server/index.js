@@ -6,10 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Room, MAX_HUMANS } from './room.js';
+import { likes } from './likes.js';
 
 const PORT = Number(process.env.PORT || 3049);
 const BASE = process.env.BASE_PATH || '/sunadokei';
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const ROOT = process.env.PUBLIC_DIR ? path.resolve(process.env.PUBLIC_DIR) : path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_CONN = Number(process.env.MAX_CONN || 600);
 const MAX_PER_IP = Number(process.env.MAX_PER_IP || 16);
 const MIME = { '.mp3': 'audio/mpeg', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
@@ -112,7 +113,7 @@ wss.on('connection', (ws, req) => {
         room = pickRoom();
         player = room.addHuman(ws, cleanName(m.name));
       } else if (m && m.t === 'like' && player) {
-        room.onLike(player, m.n);
+        room.onLike(player, m.id, m.n);
       }
     } catch (err) { console.error('[message]', err); }
   });
@@ -131,4 +132,10 @@ setInterval(() => {
 }, 20000);
 
 server.listen(PORT, '127.0.0.1', () => console.log(`sunadokei listening on 127.0.0.1:${PORT}${BASE}`));
+// 再起動のときは接続中の人に知らせる（画面側が自動で入り直す）
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => {
+  likes.save();
+  for (const ws of wss.clients) ws.close(1012, 'restart');
+  setTimeout(() => process.exit(0), 150);
+});
 process.on('uncaughtException', (e) => console.error('[uncaught]', e));

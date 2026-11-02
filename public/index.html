@@ -57,6 +57,38 @@ button,input{font:inherit;color:inherit}
 @media (max-width:560px){.rules{grid-template-columns:1fr;gap:5px}.rules div{padding:6px 10px;font-size:12px}}
 @media (max-height:560px){.rules{display:none}.logo h1{font-size:44px}}
 
+#menu{position:fixed;z-index:32;top:calc(12px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));text-align:right}
+#menuBtn{width:44px;height:44px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#0008;border:1px solid #f6cf8866;border-radius:3px;cursor:pointer;padding:0}
+#menuBtn:hover,#menuBtn[aria-expanded="true"]{background:#f6cf8833}
+#menuBtn i{display:block;width:20px;height:2px;background:var(--gold)}
+#menuPanel{margin-top:6px;min-width:250px;max-width:calc(100vw - 28px);background:#0a0713f2;border:1px solid #f6cf8855;border-radius:3px;text-align:left;padding:4px 0}
+#menuPanel[hidden]{display:none}
+#menuPanel a,#menuPanel button{display:block;width:100%;padding:12px 16px;font-size:14px;color:var(--txt);text-decoration:none;background:none;border:0;text-align:left;cursor:pointer}
+#menuPanel a:hover,#menuPanel button:hover,#menuPanel a:focus-visible,#menuPanel button:focus-visible{background:#f6cf8826;color:#fff;outline:0}
+
+#help{position:fixed;inset:0;z-index:36;display:flex;align-items:flex-start;justify-content:center;background:#06040cd9;padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));overflow:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+#help[hidden]{display:none}
+#helpBox{position:relative;width:min(600px,100%);margin:auto;background:#0a0713;border:1px solid #f6cf8855;border-radius:4px;padding:20px 22px 22px;font-size:14px;line-height:1.75}
+#helpBox h2{font-family:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;font-size:26px;letter-spacing:.14em;margin:0 44px 8px 0;color:#fff4dc}
+#helpBox h3{font-size:14.5px;color:var(--gold);margin:16px 0 3px;letter-spacing:.06em}
+#helpBox p{margin:0}
+#helpBox ul{margin:0;padding-left:1.2em}
+#helpBox b{color:#fff4dc}
+#helpBox table{border-collapse:collapse;width:100%}
+#helpBox th,#helpBox td{padding:4px 8px 4px 0;border-bottom:1px solid #fff1;text-align:left;font-weight:400}
+#helpBox th{color:var(--gold);white-space:nowrap;width:1%;padding-right:18px}
+#helpBox .sp{display:none}
+.touch #helpBox .sp{display:table}
+.touch #helpBox .pc{display:none}
+#helpBox .note{margin-top:14px;font-size:12.5px;color:#fff9}
+#helpClose{position:absolute;top:10px;right:10px;width:44px;height:44px;background:none;border:1px solid #fff3;border-radius:3px;font-size:16px;cursor:pointer}
+#helpClose:hover{background:#fff2}
+
+#foot{margin-top:9px;font-size:12px;color:#fff9;letter-spacing:.03em}
+#foot span{margin:0 7px}
+#foot a{color:var(--gold);text-decoration:none;display:inline-block;padding:3px 0}
+#foot a:hover{text-decoration:underline}
+
 /* HUD */
 #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;z-index:10;text-shadow:0 1px 5px #000c}
 #hud.on{opacity:1}
@@ -87,7 +119,7 @@ button,input{font:inherit;color:inherit}
 #rank div{display:flex;gap:8px;justify-content:flex-end;opacity:.86}
 #rank .me{opacity:1;color:var(--gold);font-weight:700}
 #rank span:last-child{min-width:2.2em;font-variant-numeric:tabular-nums}
-#mute{pointer-events:auto;margin-top:8px;background:#0006;border:1px solid #fff3;border-radius:3px;padding:3px 9px;font-size:11.5px;cursor:pointer}
+.hudbtn{pointer-events:auto;margin-top:8px;background:#0006;border:1px solid #fff3;border-radius:3px;padding:3px 9px;font-size:11.5px;cursor:pointer}
 
 #feed{position:absolute;left:calc(16px + env(safe-area-inset-left));top:calc(128px + env(safe-area-inset-top));font-size:12.5px;line-height:1.65;max-width:min(320px,48vw)}
 #feed div{animation:fadein .25s}
@@ -156,24 +188,24 @@ button,input{font:inherit;color:inherit}
 #rbox{width:min(520px,100%);text-align:center}
 #rbox h2{font-size:clamp(30px,6vw,52px);letter-spacing:.14em;margin:0;font-weight:800;color:#fff4dc;text-shadow:0 0 30px #ff9b4a}
 #rsum{color:var(--gold);margin:8px 0 12px;letter-spacing:.06em;font-size:15px}
-#rlist{list-style:none;margin:0;padding:0;font-size:14px;text-align:left}
-#rlist li{display:flex;gap:10px;padding:4px 10px;border-bottom:1px solid #fff1}
+#rlist{list-style:none;margin:0;padding:0;font-size:14px;text-align:left;max-height:calc(100vh - 225px);max-height:calc(100dvh - 225px);overflow-y:auto;touch-action:pan-y}
+#rlist li{display:flex;gap:10px;align-items:center;padding:1px 6px 1px 10px;border-bottom:1px solid #fff1}
 #rlist li.me{background:#f6cf8833;color:#fff}
 #rlist .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #rlist .v{font-variant-numeric:tabular-nums;color:var(--gold)}
 #rlist .d{color:#fff7}
 #rhero{margin-top:10px;font-size:14px;color:var(--blue)}
-#likebox{margin-top:14px}
-#like{display:inline-flex;align-items:center;gap:12px;background:none;color:#fff4dc;border:0;padding:6px 14px;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-#like svg{width:44px;height:62px;flex:none;overflow:visible;filter:drop-shadow(0 0 10px #ff9b4a88)}
-#likeIcon{fill:#0000;stroke:#f6cf8c;stroke-width:2;stroke-linejoin:round;transition:fill .12s}
-#like:hover #likeIcon{fill:#f4b86044}
-#like.liked #likeIcon{fill:#f4b860;stroke:#ffe9c4}
-#like b{font-variant-numeric:tabular-nums;min-width:1.6em;font-size:34px;text-align:left}
-#likenote{margin-top:7px;font-size:12.5px;color:#fff9}
-#likenote span{color:var(--gold);font-variant-numeric:tabular-nums}
+#likebox{margin-top:10px;font-size:12.5px;line-height:1.6;color:#fff9}
+#likebox span{color:var(--gold);font-variant-numeric:tabular-nums}
+.lk{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:3px 4px 3px 10px;cursor:pointer;color:#fff4dc;touch-action:manipulation;flex:none;min-width:64px}
+.lk svg{width:15px;height:21px;flex:none;overflow:visible}
+.lk path{fill:#0000;stroke:#f6cf8c;stroke-width:2.4;stroke-linejoin:round;transition:fill .12s}
+.lk:hover path{fill:#f4b86044}
+.lk.liked path{fill:#f4b860;stroke:#ffe9c4}
+.lk b{font-variant-numeric:tabular-nums;font-size:14px;text-align:left}
 .lkf{position:fixed;width:20px;height:28px;margin-left:-10px;pointer-events:none;z-index:28}
 .lkf svg{width:100%;height:100%;display:block}
+.lkf path{fill:#f4b860;stroke:#ffe9c4;stroke-width:1.5}
 #rnext{margin-top:12px;font-size:13px;opacity:.8}
 
 #gate{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#000a;padding:10px 18px;font-size:14px;border-radius:3px;z-index:15;display:none;pointer-events:none;letter-spacing:.06em;white-space:nowrap}
@@ -214,7 +246,8 @@ button,input{font:inherit;color:inherit}
   <div id="side" class="sans">
     <div id="count"></div>
     <div id="rank"></div>
-    <button id="mute" type="button">音 入</button>
+    <button id="bgmGame" class="hudbtn" type="button">曲 入</button>
+    <button id="mute" class="hudbtn" type="button">音 入</button>
   </div>
   <div id="feed" class="sans"></div>
   <div id="banner"><h2 id="bannerT"></h2><p id="bannerS"></p></div>
@@ -233,6 +266,16 @@ button,input{font:inherit;color:inherit}
 <div id="gate">クリックで視点操作を再開</div>
 
 <div id="title">
+  <nav id="menu" class="sans">
+    <button id="menuBtn" type="button" aria-label="メニュー" aria-expanded="false" aria-controls="menuPanel"><i></i><i></i><i></i></button>
+    <div id="menuPanel" hidden>
+      <button id="menuOp" type="button">▶ OP再生</button>
+      <button id="menuHelp" type="button">遊び方</button>
+      <a href="lyrics.html">主題歌：イノチノスナドケイ</a>
+      <a href="https://github.com/satorunet/sunadokei" target="_blank" rel="noopener">ソースコード (GitHub)</a>
+      <a href="https://x.com/satorunet" target="_blank" rel="noopener">X (@satorunet)</a>
+    </div>
+  </nav>
   <div class="logo">
     <h1>命の砂時計</h1>
     <p>あなたの命は、残り何秒か。</p>
@@ -248,13 +291,14 @@ button,input{font:inherit;color:inherit}
     </div>
     <div id="online" class="sans"></div>
     <div class="rules sans">
-      <div><b>命は秒で減る</b>0秒で亡霊になる。金の粒を拾って延ばす。粒は下の球に多く降る。</div>
-      <div><b>砂時計は返る</b>数十秒ごとに反転。上の球は命が半分の速さで減るが、流砂に呑まれる。</div>
-      <div><b>奪うか、分けるか</b>突進で相手の命を砂にして奪える。亡霊に10秒分ければ蘇らせられる。</div>
+      <div><b>命は秒で減る</b>金の粒を拾って延ばす。</div>
+      <div><b>砂時計は返る</b>ときどき上下が入れ替わる。</div>
+      <div><b>奪うか、分けるか</b>突進で奪う。分ければ蘇る。</div>
     </div>
     <div class="keys sans">
       <span><kbd>WASD</kbd>移動</span><span><kbd>マウス</kbd>視点</span><span><kbd>Space</kbd>跳ぶ</span><span><kbd>Shift / 左クリック</kbd>突進</span><span><kbd>E</kbd>命を分ける</span>
     </div>
+    <div id="foot" class="sans">&copy; 2026 <a href="https://satoru.net/" target="_blank" rel="noopener">satoru.net</a><span>・</span><a href="https://x.com/satorunet" target="_blank" rel="noopener">X (@satorunet)</a></div>
   </div>
 </div>
 
@@ -267,20 +311,49 @@ button,input{font:inherit;color:inherit}
   <div id="opbarw"><div id="opbar"></div></div>
 </div>
 
+<div id="help" class="sans" hidden role="dialog" aria-modal="true" aria-labelledby="helpT">
+  <div id="helpBox">
+    <button id="helpClose" type="button" aria-label="閉じる">✕</button>
+    <h2 id="helpT">遊び方</h2>
+    <h3>目的</h3>
+    <p>最後の刻が終わるまで生き残ること。生き残った人の中で、命が一番多く残った人が1位です。</p>
+    <h3>命は秒で減る</h3>
+    <p>命は残り秒数です。0秒になると亡霊になります。金の粒を拾うと延び、大きな粒ほど多く延びます。</p>
+    <h3>粒を探す</h3>
+    <p>近くに粒があると、足元の矢印がその方向を指します。</p>
+    <h3>上の球と下の球</h3>
+    <ul>
+      <li><b>上の球:</b> 命の減りが半分。ただし流砂で中心へ引き込まれ、中心の穴に落ちると下の球へ。</li>
+      <li><b>下の球:</b> 粒がたくさん降る。ただし命は通常の速さで減り、中心で砂に埋もれると3倍の速さで減る。</li>
+    </ul>
+    <h3>砂時計は返る</h3>
+    <p>1巡は4つの刻に分かれ、刻の間に砂時計が反転して上下が入れ替わります。刻が進むほど命の減りは速くなり、最後の刻では1.6倍です。</p>
+    <h3>奪うか、分けるか</h3>
+    <ul>
+      <li><b>突進:</b> 命を1秒使って体当たり。当たった相手の命は粒になって周りに散らばります。拾えば自分の命に。</li>
+      <li><b>分ける:</b> 近くの亡霊に自分の命を10秒渡します。</li>
+      <li><b>亡霊:</b> 粒を拾うか命を分けてもらい、合計10秒ぶん集めると蘇ります。最後の刻でも一度だけワンチャンあり。</li>
+    </ul>
+    <h3>操作</h3>
+    <table class="pc"><tr><th>移動</th><td>WASD</td></tr><tr><th>視点</th><td>マウス（画面をクリックで開始）</td></tr><tr><th>跳ぶ</th><td>Space</td></tr><tr><th>突進</th><td>Shift / 左クリック</td></tr><tr><th>命を分ける</th><td>E</td></tr></table>
+    <table class="sp"><tr><th>移動</th><td>左下のスティック</td></tr><tr><th>視点</th><td>画面をドラッグ</td></tr><tr><th>跳ぶ・突進・分ける</th><td>右下のボタン</td></tr></table>
+    <h3>結果発表</h3>
+    <p>名前の横の砂時計を押すと、その人に「砂時計イイネ」を送れます。何回でも押せます。</p>
+    <p class="note">人数が少ないときは、名前に「砂・」が付くCPU（砂人形）が一緒に遊びます。</p>
+  </div>
+</div>
+
 <div id="result"><div id="rbox">
   <h2 id="rhead"></h2>
   <div id="rsum" class="sans"></div>
   <ol id="rlist" class="sans"></ol>
   <div id="rhero" class="sans"></div>
-  <div id="likebox" class="sans">
-    <button id="like" type="button" aria-label="砂時計イイネ"><svg viewBox="0 0 24 34" aria-hidden="true"><path id="likeIcon" d="M3 2h18v5c0 5-6 7-7 10 1 3 7 5 7 10v5H3v-5c0-5 6-7 7-10-1-3-7-5-7-10z"/></svg><b id="likeRound">0</b></button>
-    <div id="likenote">砂時計イイネは何回でも押せる ／ あなた <span id="likeMine">0</span> 回 ／ これまでの累計 <span id="likeTotal">0</span></div>
-  </div>
+  <div id="likebox" class="sans">名前の横の砂時計を押すと砂時計イイネ。何回でも押せる ／ あなたがもらった <span id="likeMine">0</span> ／ これまでの累計 <span id="likeTotal">0</span></div>
   <div id="rnext" class="sans"></div>
 </div></div>
 
 <div id="lost"><div id="lostmsg">接続が切れました</div><button type="button" onclick="location.reload()">もう一度入る</button></div>
 <div id="nogl">このブラウザでは3D表示（WebGL2）が使えないため、遊べません。</div>
-<script type="module" src="game.js?v=a285a5c824"></script>
+<script type="module" src="game.js?v=d25bdca56c"></script>
 </body>
 </html>

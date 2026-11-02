@@ -36,8 +36,7 @@ export class Room {
     this.tickMs = 0;
     this.spawnAcc = 0;
     this.ev = { g: [], r: [], e: [] };
-    this.roundLikes = 0;
-    this.likesDirty = false;
+    this.likeChanged = new Map();
     this.last = Date.now();
     this.acc = 0;
     this.timer = setInterval(() => this.loop(), 16);
@@ -50,7 +49,7 @@ export class Room {
     const p = W.newBody();
     Object.assign(p, {
       id, name, ws, bot: !ws, hue: Math.random(), life: W.START_LIFE, soul: 0, inp: { mx: 0, mz: 0, jump: false, dash: false, give: false, seq: 0 },
-      safeT: 0, giveCd: 0, gave: 0, hits: 0, lastBy: 0, lastByT: 0, survived: 0, diedAt: -1, rr: 0, ai: { t: 0, tx: 0, tz: 0, seek: 0 },
+      safeT: 0, giveCd: 0, finalUsed: false, likesGot: 0, gave: 0, hits: 0, lastBy: 0, lastByT: 0, survived: 0, diedAt: -1, rr: 0, ai: { t: 0, tx: 0, tz: 0, seek: 0 },
     });
     this.players.set(id, p);
     this.list.push(p);
@@ -71,7 +70,7 @@ export class Room {
     this.fillBots();
     if (this.phase === PHASE.WAIT || this.phase === PHASE.END) { this.place(p); p.life = W.START_LIFE; }
     else if (this.epoch < EPOCHS.length - 1) { this.place(p); p.life = W.LATE_LIFE; p.safeT = 3; }
-    else { this.place(p); this.killSilently(p); } // 最後の刻には蘇れないので次の巡りを待つ
+    else { this.place(p); this.killSilently(p); } // 最後の刻の途中参加は亡霊から。ワンチャンは使える
     if (this.phase === PHASE.FLIP) { p.y = W.H * 0.5; p.x = p.z = 5; }
     this.send(p, {
       t: 'hello', id: p.id, room: this.id, phase: this.phase, epoch: this.epoch, flipCount: this.flipCount, f: this.env.f, left: this.timeLeft,
@@ -121,14 +120,16 @@ export class Room {
     if (b & 4) i.give = true;
   }
   // 砂時計イイネ。結果発表の間だけ、何回でも押せる
-  onLike(p, n) {
+  onLike(p, id, n) {
     if (this.phase !== PHASE.END) return;
+    const q = this.players.get(id);
+    if (!q) return;
     n = Math.floor(Number(n));
     if (!(n >= 1)) return;
     n = Math.min(n, MAX_LIKES_PER_MSG);
-    this.roundLikes += n;
+    q.likesGot += n;
     likes.add(n);
-    this.likesDirty = true;
+    this.likeChanged.set(q.id, q.likesGot);
   }
   send(p, obj) {
     if (p.ws && p.ws.readyState === 1) p.ws.send(JSON.stringify(obj));
@@ -175,13 +176,15 @@ export class Room {
   }
   endRound() {
     const ranked = [...this.list].sort((a, b) => (b.ghost ? 0 : 1) - (a.ghost ? 0 : 1) || (a.ghost ? b.survived - a.survived : b.life - a.life));
-    const top = ranked.slice(0, 10).map((p) => ({ n: p.name, id: p.id, a: p.ghost ? 0 : 1, l: Math.round(p.life), s: Math.round(p.survived), g: p.gave, h: p.hits, b: p.bot ? 1 : 0 }));
+    // 上位10人と、それ以外の人間（砂時計イイネを押し合えるように）
+    const rows = [];
+    ranked.forEach((p, i) => { if ((i < 10 || !p.bot) && rows.length < 60) rows.push({ r: i + 1, n: p.name, id: p.id, a: p.ghost ? 0 : 1, l: Math.round(p.life), s: Math.round(p.survived), g: p.gave, h: p.hits, b: p.bot ? 1 : 0 }); });
     let hero = null;
     for (const p of this.list) if (p.gave > 0 && (!hero || p.gave > hero.gave)) hero = p;
     const heroWire = hero ? { n: hero.name, g: hero.gave } : null;
     const alive = this.alive();
     ranked.forEach((p, i) => {
-      this.send(p, { t: 'end', likes: likes.total, top, hero: heroWire, rank: i + 1, total: ranked.length, alive, you: { a: p.ghost ? 0 : 1, l: Math.round(p.life), s: Math.round(p.survived), g: p.gave, h: p.hits } });
+      this.send(p, { t: 'end', likes: likes.total, top: rows, hero: heroWire, rank: i + 1, total: ranked.length, alive, you: { a: p.ghost ? 0 : 1, l: Math.round(p.life), s: Math.round(p.survived), g: p.gave, h: p.hits } });
     });
     this.setPhase(PHASE.END, W.END_TIME);
   }
@@ -190,9 +193,9 @@ export class Room {
     this.grains.clear();
     W.setSand(this.env, 1);
     this.epoch = -1;
-    this.roundLikes = 0;
+    this.likeChanged.clear();
     for (const p of this.list) {
-      Object.assign(p, { ghost: false, life: W.START_LIFE, soul: 0, gave: 0, hits: 0, survived: 0, diedAt: -1, lastBy: 0, safeT: 0, stunT: 0, dashT: 0, dashCd: 0 });
+      Object.assign(p, { finalUsed: false, likesGot: 0, ghost: false, life: W.START_LIFE, soul: 0, gave: 0, hits: 0, survived: 0, diedAt: -1, lastBy: 0, safeT: 0, stunT: 0, dashT: 0, dashCd: 0 });
       this.place(p);
     }
     this.setPhase(PHASE.WAIT, W.WAIT_TIME);
@@ -212,8 +215,6 @@ export class Room {
       if (this.timeLeft <= 0) {
         if (this.epoch >= EPOCHS.length - 1) this.endRound();
         else this.beginFlip();
-      } else if (this.epoch === EPOCHS.length - 1 && this.alive() === 0) {
-        this.endRound(); // 最後の刻で全員の砂が尽きたら終わり
       }
     } else if (this.timeLeft <= 0) {
       if (this.phase === PHASE.WAIT) this.startRound();
@@ -232,9 +233,9 @@ export class Room {
     if (this.tickN % 2 === 0) this.sendSnapshots();
     if (this.tickN % 3 === 0) this.flushEvents();
     if (this.tickN % 30 === 0) this.sendRanking();
-    if (this.likesDirty && this.tickN % 3 === 0) {
-      this.likesDirty = false;
-      this.broadcastRaw(JSON.stringify({ t: 'lk', r: this.roundLikes, a: likes.total }));
+    if (this.likeChanged.size && this.tickN % 3 === 0) {
+      this.broadcastRaw(JSON.stringify({ t: 'lk', c: [...this.likeChanged], a: likes.total }));
+      this.likeChanged.clear();
     }
   }
 
@@ -263,17 +264,18 @@ export class Room {
   }
   killSilently(p) { p.life = 0; p.ghost = true; p.soul = 0; p.ground = false; }
   rebirth(p, life) {
+    if (this.epoch === EPOCHS.length - 1) p.finalUsed = true; // 最後の刻のワンチャンは一度だけ
     p.ghost = false; p.life = life; p.soul = 0; p.safeT = 2.5; p.vy = 6; p.ground = false;
     this.ev.e.push(['reb', p.id]);
   }
-  canRebirth() { return this.phase === PHASE.RUN && this.epoch < EPOCHS.length - 1; }
+  canRebirth(p) { return this.phase === PHASE.RUN && !(this.epoch === EPOCHS.length - 1 && p.finalUsed); }
 
   // 近くの亡霊に命を分ける
   tryGive(p) {
-    if (p.ghost || p.giveCd > 0 || p.life <= W.GIFT + 2 || !this.canRebirth()) return;
+    if (p.ghost || p.giveCd > 0 || p.life <= W.GIFT + 2 || this.phase !== PHASE.RUN) return;
     let best = null, bd = 9 * 9;
     for (const q of this.list) {
-      if (!q.ghost) continue;
+      if (!q.ghost || !this.canRebirth(q)) continue;
       const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2 + (q.z - p.z) ** 2;
       if (d < bd) { bd = d; best = q; }
     }
@@ -281,7 +283,7 @@ export class Room {
     p.life -= W.GIFT; p.gave += W.GIFT; p.giveCd = 0.8;
     best.soul += W.GIFT;
     this.ev.e.push(['give', p.id, best.id]);
-    if (best.soul >= W.REBIRTH_SOUL) this.rebirth(best, best.soul);
+    if (best.soul >= W.REBIRTH_SOUL) this.rebirth(best, Math.max(W.REBIRTH_LIFE, best.soul));
   }
 
   // ───────── 命の粒 ─────────
@@ -303,7 +305,7 @@ export class Room {
   spawnStream(dt) {
     if (this.env.f <= 0) return;
     // 全員が平均的に拾うと命の減りとほぼ釣り合う量を落とす
-    this.spawnAcc += dt * (2.5 + this.list.length * 0.17);
+    this.spawnAcc += dt * (3.5 + this.list.length * 0.22);
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
       const rmax = Math.min(46, Math.max(10, (this.env.P + W.H) / 0.55));
@@ -314,19 +316,18 @@ export class Room {
   touchGrains() {
     if (this.phase === PHASE.END || this.phase === PHASE.FLIP) return;
     const pos = { x: 0, y: 0, z: 0, r: 0 };
-    const canSoul = this.canRebirth();
     for (const g of this.grains.values()) {
       const age = (this.tickN - g.born) * W.TICK;
       if (age < g.fall) continue;
-      if (age > 16) { this.grains.delete(g.id); this.ev.r.push([g.id, 0]); continue; } // 古い粒は砂に沈む
+      if (age > 22) { this.grains.delete(g.id); this.ev.r.push([g.id, 0]); continue; } // 古い粒は砂に沈む
       W.grainPos(g, age, this.env, pos);
       if (g.top && pos.r < 4) { this.grains.delete(g.id); this.ev.r.push([g.id, 0]); continue; }
       for (const p of this.list) {
         const dx = p.x - pos.x, dz = p.z - pos.z;
-        if (dx * dx + dz * dz > 3.2) continue;
+        if (dx * dx + dz * dz > 5) continue;
         if (Math.abs(p.y - pos.y) > 3.2) continue;
-        if (p.ghost && !canSoul) continue;
-        if (p.ghost) { p.soul += g.v; if (p.soul >= W.REBIRTH_SOUL) this.rebirth(p, p.soul); }
+        if (p.ghost && !this.canRebirth(p)) continue;
+        if (p.ghost) { p.soul += g.v; if (p.soul >= W.REBIRTH_SOUL) this.rebirth(p, Math.max(W.REBIRTH_LIFE, p.soul)); }
         else p.life = Math.min(W.MAX_LIFE, p.life + g.v);
         this.grains.delete(g.id);
         this.ev.r.push([g.id, p.id]);
@@ -348,7 +349,7 @@ export class Room {
         a.hits++; b.lastBy = a.id; b.lastByT = this.tickN; a.dashT = 0; a.vx *= -0.2; a.vz *= -0.2;
         this.ev.e.push(['hit', a.id, b.id]);
         if (this.phase === PHASE.RUN) {
-          const spill = Math.min(b.life - 0.5, Math.max(4, b.life * 0.14));
+          const spill = Math.min(b.life - 0.5, Math.max(3, b.life * 0.1));
           if (spill > 0) {
             b.life -= spill;
             this.spill(b, spill);
@@ -425,7 +426,7 @@ export class Room {
         if (qd > 90 || Math.abs(q.y - p.y) > 3) continue;
         if (q.ghost) {
           if (p.life > 45 && (p.id + this.epoch) % 4 === 0 && Math.random() < 0.3) i.give = true;
-        } else if (p.dashCd <= 0 && p.life > 6 && Math.random() < 0.3 && (!q.bot || Math.random() < 0.3)) {
+        } else if (p.dashCd <= 0 && p.life > 6 && Math.random() < 0.1) { // 人間だけを狙わない
           const qq = Math.sqrt(qd) || 1;
           i.mx = (q.x - p.x) / qq; i.mz = (q.z - p.z) / qq; i.dash = true;
         }
@@ -449,6 +450,7 @@ export class Room {
     if (p.buried) fl |= F.BURIED;
     if (p.bot) fl |= F.BOT;
     if (p.safeT > 0) fl |= F.SAFE;
+    if (p.finalUsed && this.epoch === EPOCHS.length - 1) fl |= F.NOCHANCE;
     buf[o + 9] = fl;
     buf[o + 10] = Math.min(255, Math.ceil(p.ghost ? p.soul : p.life));
     return o + 11;
