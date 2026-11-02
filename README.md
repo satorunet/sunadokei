@@ -103,4 +103,5 @@ npm start        # http://127.0.0.1:3049/sunadokei/
 
 ## ライセンス
 
-[MIT](LICENSE)。主題歌の音源 `public/theme.mp3` と歌詞を含むリポジトリ全体に適用します。
+- **ソースコード:** [MIT](LICENSE)
+- **主題歌「イノチノスナドケイ」（音源 `public/theme.mp3` と歌詞）:** MIT の対象外です。© 2026 satorunet, All rights reserved. 個人で聴くためのダウンロードは無料ですが、再配布、配信サービスへの登録、そのほかの利用には許可が必要です。
