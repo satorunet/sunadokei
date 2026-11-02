@@ -1,0 +1,20 @@
+{
+  "name": "sunadokei",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "命の砂時計 - 巨大な砂時計の中で命（残り秒数）を奪い、分け合う大人数オンライン3Dゲーム",
+  "scripts": {
+    "bundle": "esbuild client/main.js --bundle --minify --format=esm --target=es2020 --outfile=public/game.js && node tools/stamp.js",
+    "build": "npm run bundle",
+    "start": "node server/index.js",
+    "test": "node tools/check.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
